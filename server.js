@@ -1,16 +1,16 @@
 function Server(httpPort, httpIp, smtpPort, smtpIp, maxMessageSize) {
   var express = require('express.io'),
-      path = require('path'),
-      routes = require('./app/config/routes'),
-      logger = require('./app/services/logger'),
-      smtp = require('smtp-protocol'),
-      settings = require('./app/config/settings'),
-      request = require('request'),
-      util = require('util'),
-      favicon = require('serve-favicon'),
-      mongoose = require('mongoose'),
-      through2 = require('through2'),
-      async = require('async');
+          path = require('path'),
+          routes = require('./app/config/routes'),
+          logger = require('./app/services/logger'),
+          smtp = require('smtp-protocol'),
+          settings = require('./app/config/settings'),
+          request = require('request'),
+          util = require('util'),
+          favicon = require('serve-favicon'),
+          mongoose = require('mongoose'),
+          through2 = require('through2'),
+          async = require('async');
 
   var app = express();
   app.http().io();
@@ -30,9 +30,10 @@ function Server(httpPort, httpIp, smtpPort, smtpIp, maxMessageSize) {
 
   mongoose.set('debug', settings.database.debug);
 
-  var connect = function() {
-    mongoose.connect(settings.database.url, settings.database.options, function(err) {
-      if (err) throw err;
+  var connect = function () {
+    mongoose.connect(settings.database.url, settings.database.options, function (err) {
+      if (err)
+        throw err;
     });
   }
   connect();
@@ -41,7 +42,7 @@ function Server(httpPort, httpIp, smtpPort, smtpIp, maxMessageSize) {
 
   // view engine setup
   app.set('views', path.join(__dirname, '/app/views'));
-  app.set('view engine', 'jade');
+  app.set('view engine', 'pug');
   app.use(express.static(path.join(__dirname, 'public')));
 
   app.use(function (req, res, next) {
@@ -97,7 +98,7 @@ function Server(httpPort, httpIp, smtpPort, smtpIp, maxMessageSize) {
       attachment: mongoose.model('attachment', require(path.join(__dirname, '/app/models/attachment')))
     };
     var messageService = require('./app/services/message')(models);
-    var mp = new MailParser({ debug: false, streamAttachments: false });
+
 
     /**
      * Reject a message if it is larger than the specified max message length
@@ -108,7 +109,7 @@ function Server(httpPort, httpIp, smtpPort, smtpIp, maxMessageSize) {
       return through2(function (chunk, enc, callback) {
         streamLength += chunk.length;
         if (streamLength > length) {
-          callback({ code: 552, message: 'Requested mail action aborted: exceeded storage allocation' });
+          callback({code: 552, message: 'Requested mail action aborted: exceeded storage allocation'});
         } else {
           callback(null, chunk);
         }
@@ -121,70 +122,75 @@ function Server(httpPort, httpIp, smtpPort, smtpIp, maxMessageSize) {
       var data = '';
 
       stream.pipe(limit(maxMessageSize)
-        .on('data', function (d) {
-          data += d;
-        }))
-        .on('error', function (err) {
-          if (err.code === 552) {
-            logger.smtp.error('Rejected message: %s', err.message);
-            ack.reject(err.code, err.message);
-          } else {
-            logger.smtp.error('Error processing message', err);
-          }
-        })
-        .on('end', function () {
-          mp.on('end', function (mail) {
-            /**
-             * safe to assume if we don't have a recipient address then the email is invalid.
-             * Unfortunately mailparser does not emit errors :-(
-             */
-            if (mail.to === undefined) {
-              logger.smtp.error('Invalid email sent');
-              return;
-            }
-            var builder = new MessageBuilder(mail, data);
-            messageService.create(builder, function (err, message) {
-              if (err) {
-                logger.smtp.error('Error persisting message from %s to database', message.from.address);
-                return;
-              }
-              logger.smtp.info('Persisted message from %s to database', message.from.address);
-              models.message.findById(message._id, 'subject from received read size recipients ccs attachments html')
-                .populate('attachments', 'name contentType size contentId').lean().exec(function (err, message) {
-                  if (message.html) {
-                    message.hasHtml = true;
-                    delete message.html;
+              .on('data', function (d) {
+                data += d;
+              }))
+              .on('error', function (err) {
+                if (err.code === 552) {
+                  logger.smtp.error('Rejected message: %s', err.message);
+                  ack.reject(err.code, err.message);
+                } else {
+                  logger.smtp.error('Error processing message', err);
+                }
+              })
+              .on('end', function () {
+                var mp = new MailParser({debug: false, streamAttachments: false});
+                mp.on('end', function (mail) {
+                  /**
+                   * safe to assume if we don't have a recipient address then the email is invalid.
+                   * Unfortunately mailparser does not emit errors :-(
+                   */
+                  if (mail.to === undefined) {
+                    logger.smtp.error('Invalid email sent');
+                    return;
                   }
-                  app.io.broadcast('new message', { data: message });
+
+                  var builder = new MessageBuilder(mail, data);
+                  messageService.create(builder, function (err, message) {
+                    if (err) {
+                      logger.smtp.error('Error persisting message from %s to database', message.from.address);
+                      return;
+                    }
+                    logger.smtp.info('Persisted message from %s to database', message.from.address);
+                    models.message.findById(message._id, 'subject from received read size recipients ccs attachments html')
+                            .populate('attachments', 'name contentType size contentId').lean().exec(function (err, message) {
+                      if (message.html) {
+                        message.hasHtml = true;
+                        delete message.html;
+                      }
+                      if (settings.smtpRelay.automatic) {
+                        messageService.relay(message, null, settings);
+                      }
+                      app.io.broadcast('new message', {data: message});
+                    });
+                  });
                 });
-            });
-          });
-          mp.write(data);
-          mp.end();
-        });
+                mp.write(data);
+                mp.end();
+              });
     });
   });
   return {
     run: function (done) {
-      async.series([ function (callback) {
-        var server = app.listen(httpPort, httpIp, function () {
-          logger.http.info('HTTP server listening on port %d and address %s', server.address().port, server.address().address);
-          callback();
-        }).on('error', function (err) {
-          logger.http.error('Error starting HTTP server', err);
-          callback(err);
-        });
-      }, function (callback) {
-        smtpServer.listen(smtpPort, smtpIp, function () {
-          var port = smtpServer.address().port,
-              address = smtpServer.address().address;
-          logger.smtp.info('SMTP server listening on port %d and address %s', port, address);
-          callback();
-        }).on('error', function (err) {
-          logger.smtp.error('Error starting SMTP server', err);
-          callback(err);
-        });
-      }], function (err) {
+      async.series([function (callback) {
+          var server = app.listen(httpPort, httpIp, function () {
+            logger.http.info('HTTP server listening on port %d and address %s', server.address().port, server.address().address);
+            callback();
+          }).on('error', function (err) {
+            logger.http.error('Error starting HTTP server', err);
+            callback(err);
+          });
+        }, function (callback) {
+          smtpServer.listen(smtpPort, smtpIp, function () {
+            var port = smtpServer.address().port,
+                    address = smtpServer.address().address;
+            logger.smtp.info('SMTP server listening on port %d and address %s', port, address);
+            callback();
+          }).on('error', function (err) {
+            logger.smtp.error('Error starting SMTP server', err);
+            callback(err);
+          });
+        }], function (err) {
         if (err) {
           done(err);
         }

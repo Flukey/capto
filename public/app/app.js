@@ -1,4 +1,4 @@
-Ext.Loader.setConfig({ enabled: true });
+Ext.Loader.setConfig({enabled: true});
 Ext.Loader.setPath('Ext.ux', '/lib/ext/ux');
 Ext.require([
   'Ext.grid.*',
@@ -19,7 +19,7 @@ Ext.onReady(function () {
    * Enable the state manager
    */
   Ext.state.Manager.setProvider(
-    new Ext.state.CookieProvider({ expires: new Date(new Date().getTime() + (1000 * 60 * 60 * 24 * 730))  })); // expires in two years
+          new Ext.state.CookieProvider({expires: new Date(new Date().getTime() + (1000 * 60 * 60 * 24 * 730))})); // expires in two years
   // setup default settings
   var stateManager = Ext.state.Manager;
   if (stateManager.get('enableNotifications') === undefined) {
@@ -85,7 +85,9 @@ Ext.onReady(function () {
     }
 
     var messageStore = Ext.StoreMgr.lookup("messageStore");
-    messageStore.insert(0, data.data);
+    messageStore.reload();
+    var originStore = Ext.StoreMgr.lookup("originStore");
+    originStore.reload();
 
     if (stateManager.get('enableNotifications') === true) {
       var html = Ext.String.format('<p>{0}</p><b>{1}</b>', data.data.subject || 'No subject', data.data.from.address);
@@ -97,6 +99,21 @@ Ext.onReady(function () {
       });
     }
   });
+
+  socketIo.on('delete all', function (data) {
+    var messageStore = Ext.StoreMgr.lookup("messageStore");
+    messageStore.removeAll();
+    var originStore = Ext.StoreMgr.lookup("originStore");
+    originStore.removeAll();
+  });
+
+  socketIo.on('refresh', function (data) {
+    var messageStore = Ext.StoreMgr.lookup("messageStore");
+    messageStore.reload();
+    var originStore = Ext.StoreMgr.lookup("originStore");
+    originStore.reload();
+  });
+
 
   /**
    * Bind attachment images to magnific popup

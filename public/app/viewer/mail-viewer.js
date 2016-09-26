@@ -29,12 +29,12 @@ Ext.define('MailViewer.App', {
       extend: 'Ext.data.Model',
       idProperty: '_id',
       fields: [
-        { name: 'id', type: 'int' },
-        { name: 'name', 'type': 'string' },
-        { name: 'size', type: 'int' },
-        { name: 'contentType', type: 'string' },
-        { name: 'checksum', type: 'string' },
-        { name: 'contentId', type: 'string'}
+        {name: 'id', type: 'int'},
+        {name: 'name', 'type': 'string'},
+        {name: 'size', type: 'int'},
+        {name: 'contentType', type: 'string'},
+        {name: 'checksum', type: 'string'},
+        {name: 'contentId', type: 'string'}
       ]
     });
 
@@ -42,17 +42,28 @@ Ext.define('MailViewer.App', {
       extend: "Ext.data.Model",
       idProperty: '_id',
       fields: [
-        { name: 'subject', type: 'string' },
-        { name: 'received', type: 'date' },
-        { name: 'from', type: 'auto' },
-        { name: 'size', type: 'int'},
-        { name: 'hasHtml', type: 'boolean' },
-        { name: 'hasPlain', type: 'boolean' },
-        { name: 'humanSize', type: 'string' }
+        {name: 'subject', type: 'string'},
+        {name: 'received', type: 'date'},
+        {name: 'from', type: 'auto'},
+        {name: 'size', type: 'int'},
+        {name: 'hasHtml', type: 'boolean'},
+        {name: 'hasPlain', type: 'boolean'},
+        {name: 'humanSize', type: 'string'},
+        {name: 'deliveryDate', type: 'date'},
+        {name: '_deliveryMail', type: 'string'}, // not persisted, only to send destination to nodejs while saving
       ],
       hasMany: {
         model: 'MailViewer.model.MessageRecipient', name: 'recipients'
       }
+    });
+
+    Ext.define('Origin', {
+      extend: "Ext.data.Model",
+      idProperty: '_id',
+      fields: [
+        {name: '_id', type: 'string'},
+        {name: 'value', type: 'int'},
+      ],
     });
 
     Ext.apply(this, {
